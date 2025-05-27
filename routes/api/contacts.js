@@ -5,6 +5,7 @@ import {
   addContact,
   removeContact,
   updateContact,
+  updateStatusContact,
 } from "../../models/contacts.js";
 import Joi from "joi";
 
@@ -33,6 +34,9 @@ const contactPutSchema = Joi.object({
   email: emailSchema,
   phone: phoneSchema,
 }).min(1);
+const contactPatchSchema = Joi.object({
+  favorite: Joi.boolean().required(),
+});
 
 router.get("/", async (req, res, next) => {
   try {
@@ -84,6 +88,48 @@ router.post("/", async (req, res, next) => {
   }
 });
 
+router.put("/:id", async (req, res, next) => {
+  try {
+    const filteredBody = Object.fromEntries(
+      Object.entries(req.body).filter(([_, value]) => value !== undefined)
+    );
+
+    if (Object.keys(filteredBody).length === 0) {
+      return res.status(400).json({ message: "Missing fields" });
+    }
+
+    const { id } = req.params;
+    const updateData = await contactPutSchema.validateAsync(filteredBody);
+    const updatedContact = await updateContact(id, updateData);
+    if (!updatedContact) {
+      return res.status(404).json({ message: "Not found" });
+    }
+
+    res.status(200).json({ data: updatedContact });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.patch("/:id/favorite", async (req, res, next) => {
+  try {
+    if (Object.keys(req.body).length === 0 || !("favorite" in req.body)) {
+      return res.status(400).json({ message: "Missing field favorite" });
+    }
+
+    const { id } = req.params;
+    const favorite = await contactPatchSchema.validateAsync(req.body);
+    const updatedContact = await updateStatusContact(id, favorite);
+    if (!updatedContact) {
+      return res.status(404).json({ message: "Not found" });
+    }
+
+    res.status(200).json({ data: updatedContact });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.delete("/:id", async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -93,29 +139,6 @@ router.delete("/:id", async (req, res, next) => {
     }
 
     res.status(200).json({ message: "Contact deleted" });
-  } catch (err) {
-    next(err);
-  }
-});
-
-router.put("/:id", async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const filteredBody = Object.fromEntries(
-      Object.entries(req.body).filter(([_, value]) => value !== undefined)
-    );
-
-    if (Object.keys(filteredBody).length === 0) {
-      return res.status(400).json({ message: "Missing fields" });
-    }
-
-    const updateData = await contactPutSchema.validateAsync(filteredBody);
-    const updatedContact = await updateContact(id, updateData);
-    if (!updatedContact) {
-      return res.status(404).json({ message: "Not found" });
-    }
-
-    res.status(200).json({ data: updatedContact });
   } catch (err) {
     next(err);
   }
