@@ -16,12 +16,19 @@ const contactSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    owner: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "user",
+    },
   },
   { versionKey: false }
 );
 const Contact = mongoose.model("contact", contactSchema, "contacts");
 
-export const listContacts = async () => Contact.find();
+export const listContacts = async (filter, page, limit) =>
+  Contact.find(filter)
+    .skip((page - 1) * limit)
+    .limit(limit);
 
 export const getContactById = async (contactId) => Contact.findById(contactId);
 

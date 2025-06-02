@@ -40,7 +40,14 @@ const contactPatchSchema = Joi.object({
 
 router.get("/", async (req, res, next) => {
   try {
-    const contacts = await listContacts();
+    const { favorite, page, limit } = req.query;
+    const filter = favorite === "true" ? { favorite: true } : {};
+
+    const contacts = await listContacts(
+      filter,
+      Number(page) || 1,
+      Number(limit) || 20
+    );
     res.status(200).json({ data: contacts });
   } catch (err) {
     next(err);
