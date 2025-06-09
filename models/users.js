@@ -17,6 +17,10 @@ const userSchema = new mongoose.Schema(
       enum: ["starter", "pro", "business"],
       default: "starter",
     },
+    avatarURL: {
+      type: String,
+      default: null,
+    },
     token: {
       type: String,
       default: null,
@@ -36,7 +40,11 @@ userSchema.methods.validatePassword = async function (password) {
 export const User = mongoose.model("user", userSchema, "users");
 
 export const updateUserSubscription = async (userId, subscription) =>
-  User.findByIdAndUpdate(userId, { subscription }, {
-    new: true,
-    runValidators: true,
-  });
+  User.findByIdAndUpdate(
+    userId,
+    { subscription },
+    {
+      new: true,
+      runValidators: true,
+    }
+  );
