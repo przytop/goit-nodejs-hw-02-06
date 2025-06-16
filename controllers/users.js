@@ -1,7 +1,9 @@
 import dotenv from "dotenv";
 import Joi from "joi";
 import { User, updateUserSubscription } from "../models/users.js";
+import { v4 as uuidv4 } from "uuid";
 import gravatar from "gravatar";
+import { sendEmail } from "../services/sendgrid.js";
 import jwt from "jsonwebtoken";
 import { removeTempFile, transformAvatar } from "../helpers/helpers.js";
 
@@ -35,6 +37,9 @@ const userLoginSchema = Joi.object({
 const userUpdateSchema = Joi.object({
   subscription: subscriptionSchema.required(),
 });
+const userVerifySchema = Joi.object({
+  email: emailSchema.required(),
+});
 
 export const signUp = async (req, res, next) => {
   try {
@@ -45,10 +50,22 @@ export const signUp = async (req, res, next) => {
       return res.status(409).json({ message: "Email in use" });
     }
 
+    const verificationToken = uuidv4();
     const avatarURL = gravatar.url(email, { s: "250", d: "robohash" }, true);
-    const newUser = new User({ email, subscription, avatarURL });
+    const newUser = new User({
+      email,
+      subscription,
+      avatarURL,
+      verificationToken,
+    });
     await newUser.setPassword(password);
     await newUser.save();
+
+    const verificationUrl = `${req.protocol}://${req.get(
+      "host"
+    )}/api/users/verify/${verificationToken}`;
+    await sendEmail(email, verificationUrl);
+
     res.status(201).json({
       data: {
         user: {
@@ -69,6 +86,9 @@ export const logIn = async (req, res, next) => {
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(401).json({ message: "Not such a user" });
+    }
+    if (!user.verify) {
+      return res.status(401).json({ message: "User not verify" });
     }
 
     const validPassword = await user.validatePassword(password);
@@ -172,6 +192,53 @@ export const patchAvatar = async (req, res, next) => {
     res.status(200).json({ data: { avatarURL: user.avatarURL } });
   } catch (err) {
     await removeTempFile(tempUploadPath);
+    next(err);
+  }
+};
+
+export const verifyUser = async (req, res, next) => {
+  try {
+    const { verificationToken } = req.params;
+    const user = await User.findOne({ verificationToken });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    user.verificationToken = null;
+    user.verify = true;
+    await user.save();
+
+    res.status(200).json({ message: "Verification successful" });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const resendVerificationEmail = async (req, res, next) => {
+  try {
+    const { email } = await userVerifySchema.validateAsync(req.body);
+    if (!email) {
+      return res.status(400).json({ message: "missing required field email" });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (user.verify) {
+      return res
+        .status(400)
+        .json({ message: "Verification has already been passed" });
+    }
+
+    const verificationUrl = `${req.protocol}://${req.get(
+      "host"
+    )}/api/users/verify/${user.verificationToken}`;
+    await sendEmail(email, verificationUrl);
+
+    res.status(200).json({ message: "Verification email sent" });
+  } catch (err) {
     next(err);
   }
 };

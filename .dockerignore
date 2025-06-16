@@ -1,0 +1,9 @@
+node_modules
+.env
+.env.example
+.eslintignore
+.eslintrc.js
+.git
+.gitignore
+nodemon.json
+readme.md
